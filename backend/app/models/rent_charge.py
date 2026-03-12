@@ -36,6 +36,20 @@ class RentCharge(db.Model):
     __table_args__ = (
         db.UniqueConstraint("lease_id", "period_year", "period_month", name="uq_rent_charge_lease_period"),
     )
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "lease_id": self.lease_id,
+            "period_year": self.period_year,
+            "period_month": self.period_month,
+            "amount_due": float(self.amount_due),
+            "late_fee": float(self.late_fee),
+            "due_date": self.due_date.isoformat(),
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
 
     def __repr__(self) -> str:
         return f"<RentCharge id={self.id} lease_id={self.lease_id} {self.period_year}-{self.period_month} status={self.status}>"

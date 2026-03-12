@@ -17,9 +17,9 @@ export function DashboardOverview() {
   // Calculate stats
   const totalProperties = mockProperties.length;
   const totalUnits = mockProperties.reduce((sum, p) => sum + p.units, 0);
-  const occupiedUnits = mockProperties.reduce((sum, p) => sum + p.occupiedUnits, 0);
+  const occupiedUnits = mockProperties.reduce((sum, p) => sum + p.occupied_units, 0);
   const occupancyRate = Math.round((occupiedUnits / totalUnits) * 100);
-  const totalRevenue = mockProperties.reduce((sum, p) => sum + p.totalRent, 0);
+  const totalRevenue = mockProperties.reduce((sum, p) => sum + p.total_rent, 0);
   const activeTenants = mockTenants.filter(t => t.status === "Active").length;
   const overdueTenants = mockTenants.filter(t => t.status === "Overdue").length;
   const totalArrears = mockTenants.reduce((sum, t) => sum + t.balance, 0);

@@ -1,20 +1,23 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ThemeProvider } from "next-themes";
 import { Button } from "./components/ui/button";
-import { 
-  LayoutDashboard, 
-  Building2, 
-  Users, 
-  DollarSign, 
-  Wrench, 
-  FileText, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Building2,
+  Users,
+  DollarSign,
+  Wrench,
+  FileText,
+  Settings,
   Bell,
   Moon,
   Sun,
   Menu,
-  X
+  X,
+  LogOut,
+  User as UserIcon,
 } from "lucide-react";
+
 import { DashboardOverview } from "./components/dashboard-overview";
 import { PropertiesView } from "./components/properties-view";
 import { TenantsView } from "./components/tenants-view";
@@ -25,10 +28,33 @@ import { SettingsView } from "./components/settings-view";
 import { Badge } from "./components/ui/badge";
 import { useTheme } from "next-themes";
 import { mockNotifications } from "./components/mock-data";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "./components/ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./components/ui/dropdown-menu";
 import { ScrollArea } from "./components/ui/scroll-area";
 
-type ViewType = "dashboard" | "properties" | "tenants" | "payments" | "maintenance" | "reports" | "settings";
+import { ApiError } from "./lib/api";
+import { me, register, signin, signout } from "./lib/services/auth.service";
+
+type ViewType =
+  | "dashboard"
+  | "properties"
+  | "tenants"
+  | "payments"
+  | "maintenance"
+  | "reports"
+  | "settings";
+
+type AuthUser = {
+  id?: number;
+  full_name?: string;
+  phone?: string;
+  email?: string | null;
+  role?: "landlord" | "tenant";
+};
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -46,11 +72,252 @@ function ThemeToggle() {
   );
 }
 
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      {message}
+    </div>
+  );
+}
+
+function AuthScreen({ onAuthed }: { onAuthed: (user: AuthUser) => void }) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+
+  // sign in fields
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+
+  // sign up fields
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"landlord" | "tenant">("landlord");
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const canSubmit = useMemo(() => {
+    if (!email.trim() || !password.trim()) return false;
+    if (mode === "signup" && !fullName.trim()) return false;
+    return true;
+  }, [mode, email, password, fullName]);
+
+  const friendlyError = (err: unknown) => {
+    if (err instanceof ApiError) {
+      if (err.status === 401) return "Invalid email or password.";
+      if (err.status >= 500) return "Server error. Please try again shortly.";
+      return err.message; // backend messages like "Phone already exists"
+    }
+    return "Network error. Please check your connection and try again.";
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+
+    try {
+      setLoading(true);
+
+      if (mode === "signin") {
+        const data = await signin(email.trim(), password);
+        console.log("Email and password:", email.trim(), password);
+        console.log("Signin response data:", data);
+        onAuthed(data.user);
+        return;
+      }
+
+      // signup
+      const data = await register({
+        full_name: fullName.trim(),
+        phone: phone.trim(),
+        email: email.trim() || undefined,
+        password,
+        role,
+      });
+
+      // After register, you can either:
+      // A) auto-login by calling signin, or
+      // B) just switch to sign-in mode
+      // We'll auto-login for better UX:
+      const login = await signin(email.trim(), password);
+      onAuthed(login.user);
+    } catch (err) {
+      setErrorMsg(friendlyError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearErrorOnType = (setter: (v: string) => void) => (v: string) => {
+    setter(v);
+    if (errorMsg) setErrorMsg(null);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="w-full max-w-md border rounded-2xl bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-primary rounded-lg">
+            <Building2 className="size-6 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="text-xl">RentFlow</h1>
+            <p className="text-sm text-muted-foreground">
+              {mode === "signin"
+                ? "Sign in to continue"
+                : "Create your account"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mb-6">
+          <Button
+            type="button"
+            variant={mode === "signin" ? "default" : "outline"}
+            className="flex-1"
+            onClick={() => {
+              setMode("signin");
+              setErrorMsg(null);
+            }}
+          >
+            Sign In
+          </Button>
+          <Button
+            type="button"
+            variant={mode === "signup" ? "default" : "outline"}
+            className="flex-1"
+            onClick={() => {
+              setMode("signup");
+              setErrorMsg(null);
+            }}
+          >
+            Sign Up
+          </Button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {errorMsg && <ErrorBanner message={errorMsg} />}
+
+          {mode === "signup" && (
+            <>
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">
+                  Full name
+                </label>
+                <input
+                  className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+                  value={fullName}
+                  onChange={(e) =>
+                    clearErrorOnType(setFullName)(e.target.value)
+                  }
+                  placeholder="e.g. Roy Cheruiyot"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">
+                  Email (optional)
+                </label>
+                <input
+                  type="email"
+                  className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+                  value={email}
+                  onChange={(e) => clearErrorOnType(setEmail)(e.target.value)}
+                  placeholder="roy@gmail.com"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">
+                  Phone
+                </label>
+                <input
+                  type="text"
+                  className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+                  value={phone}
+                  onChange={(e) => clearErrorOnType(setPhone)(e.target.value)}
+                  placeholder="07xxxxxxxx"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm text-muted-foreground">Role</label>
+                <select
+                  className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+                  value={role}
+                  onChange={(e) => {
+                    setRole(e.target.value as any);
+                    if (errorMsg) setErrorMsg(null);
+                  }}
+                >
+                  <option value="landlord">Landlord</option>
+                  <option value="tenant">Tenant</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">Email</label>
+            <input
+              className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+              value={email}
+              onChange={(e) => clearErrorOnType(setEmail)(e.target.value)}
+              placeholder="roy@gmail.com"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm text-muted-foreground">Password</label>
+            <input
+              type="password"
+              className="w-full rounded-lg border bg-background px-3 py-2 outline-none focus:ring-2 focus:ring-primary/30"
+              value={password}
+              onChange={(e) => clearErrorOnType(setPassword)(e.target.value)}
+              placeholder="••••••••"
+            />
+          </div>
+
+          <Button
+            className="w-full"
+            type="submit"
+            disabled={!canSubmit || loading}
+          >
+            {loading
+              ? mode === "signin"
+                ? "Signing in..."
+                : "Creating account..."
+              : mode === "signin"
+                ? "Sign In"
+                : "Create Account"}
+          </Button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function AppContent() {
   const [currentView, setCurrentView] = useState<ViewType>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const unreadNotifications = mockNotifications.filter(n => !n.read).length;
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // ✅ On load, check cookie session
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await me();
+        setUser(data.user);
+      } catch {
+        setUser(null);
+      } finally {
+        setAuthChecked(true);
+      }
+    })();
+  }, []);
+
+  const unreadNotifications = mockNotifications.filter((n) => !n.read).length;
 
   const navigationItems = [
     { id: "dashboard" as ViewType, label: "Dashboard", icon: LayoutDashboard },
@@ -83,6 +350,39 @@ function AppContent() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signout();
+    } finally {
+      setUser(null);
+      setCurrentView("dashboard");
+    }
+  };
+
+  // ✅ Nice loading state while checking /me
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-sm text-muted-foreground">Checking session...</div>
+      </div>
+    );
+  }
+
+  // ✅ If not logged in, show Auth screen
+  if (!user) {
+    return <AuthScreen onAuthed={(u) => setUser(u)} />;
+  }
+
+  const displayName = user.full_name || "User";
+  const displayEmail = user.email || "";
+  const initials =
+    displayName
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase())
+      .join("") || "U";
+
   return (
     <div className="flex h-screen bg-background">
       {/* Sidebar */}
@@ -100,7 +400,11 @@ function AppContent() {
               </div>
               <div>
                 <h1 className="text-lg">RentFlow</h1>
-                <p className="text-xs text-muted-foreground">Manager</p>
+                <p className="text-xs text-muted-foreground">
+                  {user.role
+                    ? user.role.charAt(0).toUpperCase() + user.role.slice(1)
+                    : "User"}
+                </p>
               </div>
             </div>
             <Button
@@ -125,7 +429,9 @@ function AppContent() {
                     key={item.id}
                     variant={isActive ? "secondary" : "ghost"}
                     className={`w-full justify-start gap-3 ${
-                      isActive ? "bg-primary/10 text-primary hover:bg-primary/15" : ""
+                      isActive
+                        ? "bg-primary/10 text-primary hover:bg-primary/15"
+                        : ""
                     }`}
                     onClick={() => {
                       setCurrentView(item.id);
@@ -140,17 +446,39 @@ function AppContent() {
             </nav>
           </ScrollArea>
 
-          {/* User Info */}
+          {/* User Info + Sign Out */}
           <div className="p-4 border-t">
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-muted">
-              <div className="size-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
-                JD
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm truncate">John Doe</p>
-                <p className="text-xs text-muted-foreground truncate">john@example.com</p>
-              </div>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted hover:bg-muted/80 transition">
+                    <div className="size-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground">
+                      {initials}
+                    </div>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-sm truncate">{displayName}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {displayEmail || user.phone || ""}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="start" className="w-56">
+                <DropdownMenuItem onClick={() => setCurrentView("settings")}>
+                  <UserIcon className="mr-2 size-4" />
+                  Profile / Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={handleLogout}
+                  className="text-red-600"
+                >
+                  <LogOut className="mr-2 size-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </aside>
@@ -171,11 +499,11 @@ function AppContent() {
               </Button>
               <div className="hidden sm:block">
                 <p className="text-sm text-muted-foreground">
-                  {new Date().toLocaleDateString("en-US", { 
-                    weekday: "long", 
-                    year: "numeric", 
-                    month: "long", 
-                    day: "numeric" 
+                  {new Date().toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
                   })}
                 </p>
               </div>
@@ -199,7 +527,9 @@ function AppContent() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
                   <div className="p-2">
-                    <h3 className="px-2 pb-2 text-sm border-b">Notifications</h3>
+                    <h3 className="px-2 pb-2 text-sm border-b">
+                      Notifications
+                    </h3>
                     <div className="space-y-1 mt-2 max-h-96 overflow-y-auto">
                       {mockNotifications.slice(0, 5).map((notification) => (
                         <div
@@ -211,7 +541,9 @@ function AppContent() {
                           <div className="flex items-start gap-2">
                             <div className="flex-1 space-y-1">
                               <p className="text-sm">{notification.message}</p>
-                              <p className="text-xs text-muted-foreground">{notification.date}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {notification.date}
+                              </p>
                             </div>
                             {!notification.read && (
                               <div className="size-2 rounded-full bg-primary mt-1.5" />

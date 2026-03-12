@@ -14,6 +14,10 @@ class Payment(db.Model):
     amount = db.Column(db.Numeric(12, 2), nullable=False)
 
     paid_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    parent_payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=True, index=True)
+
+    unapplied_amount = db.Column(db.Numeric(12, 2), nullable=False, default=0)
 
     # cash, bank, mpesa
     method = db.Column(db.String(20), nullable=False, default="cash", index=True)

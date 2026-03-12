@@ -5,8 +5,8 @@ export interface Property {
   name: string;
   location: string;
   units: number;
-  occupiedUnits: number;
-  totalRent: number;
+  occupied_units: number;
+  total_rent: number;
   type: string;
 }
 
@@ -76,8 +76,8 @@ export const mockProperties: Property[] = [
     name: "Sunset Apartments",
     location: "123 Main St, Downtown",
     units: 12,
-    occupiedUnits: 10,
-    totalRent: 18000,
+    occupied_units: 10,
+    total_rent: 18000,
     type: "Apartment",
   },
   {
@@ -85,8 +85,8 @@ export const mockProperties: Property[] = [
     name: "Green Valley Complex",
     location: "456 Oak Ave, Westside",
     units: 8,
-    occupiedUnits: 8,
-    totalRent: 16000,
+    occupied_units: 8,
+    total_rent: 16000,
     type: "Apartment",
   },
   {
@@ -94,8 +94,8 @@ export const mockProperties: Property[] = [
     name: "Riverside Studios",
     location: "789 River Rd, Eastside",
     units: 15,
-    occupiedUnits: 12,
-    totalRent: 21000,
+    occupied_units: 12,
+    total_rent: 21000,
     type: "Studio",
   },
   {
@@ -103,8 +103,8 @@ export const mockProperties: Property[] = [
     name: "Palm Heights",
     location: "321 Palm Dr, Uptown",
     units: 6,
-    occupiedUnits: 5,
-    totalRent: 15000,
+    occupied_units: 5,
+    total_rent: 15000,
     type: "Townhouse",
   },
 ];

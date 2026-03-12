@@ -36,6 +36,21 @@ class Lease(db.Model):
         cascade="all, delete-orphan",
         lazy=True,
     )
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "unit_id": self.unit_id,
+            "tenant_id": self.tenant_id,
+            "tenant_name": self.tenant.name if self.tenant else None,
+            "start_date": self.start_date.isoformat(),
+            "end_date": self.end_date.isoformat() if self.end_date else None,
+            "rent_amount_at_start": float(self.rent_amount_at_start),
+            "due_day": self.due_day,
+            "status": self.status,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat(),
+        }
 
     def __repr__(self) -> str:
         return f"<Lease id={self.id} unit_id={self.unit_id} tenant_id={self.tenant_id} status={self.status}>"
